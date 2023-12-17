@@ -33,13 +33,13 @@ Code Prompt Generation:
 Enter the topic, programming language, language version, and relevant details.
 Optionally provide existing code, problem statement, assumptions, and constraints.
 Click "Generate" to obtain a detailed prompt for code-related queries.
-Text Prompt Generation:
 
+Text Prompt Generation:
 Specify the text question, prompt type, structure, purpose, and other optional parameters.
 Customize the prompt for human-like responses or include opinions.
 Click "Generate" to receive a well-crafted text-based prompt.
-Clipboard Integration:
 
+Clipboard Integration:
 Use the "Copy" button to copy the generated prompt to the system clipboard.
 Paste the prompt into your preferred application or development environment.
 Error Handling:
