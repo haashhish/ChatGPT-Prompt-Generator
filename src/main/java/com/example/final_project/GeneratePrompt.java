@@ -1,4 +1,7 @@
 package com.example.final_project;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
@@ -6,6 +9,7 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import javafx.scene.input.ClipboardContent;
+import javafx.util.Duration;
 
 public class GeneratePrompt {
 
@@ -76,10 +80,13 @@ public class GeneratePrompt {
     private TextArea promptBoxForText;
     @FXML
     private Clipboard clipboard;
+    @FXML
+    private ProgressIndicator progressIndicator;
 
     @FXML
     private void initialize(){
         clipboard = Clipboard.getSystemClipboard();
+        progressIndicator.setVisible(false);
     }
 
     // Copy generated prompt to clipboard
@@ -104,59 +111,17 @@ public class GeneratePrompt {
         int end = response.indexOf("\"", start);
         return response.substring(start, end);
     }
-    // Method to make API request to OpenAI's ChatGPT
-    private void LLMPrompt(String prompt, int flag)
-    {
-        String apiKey="";
-        if(flag == 0)
-        {
-            apiKey = apiKeyForCode.getText();
-        }
-        else
-        {
-            apiKey = apiKeyForText.getText();
-        }
-        String model = "gpt-3.5-turbo";
-        String url = "https://api.openai.com/v1/chat/completions";
-
-        try {
-            URL obj = new URL(url);
-            HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Authorization", "Bearer " + apiKey);
-            connection.setRequestProperty("Content-Type", "application/json");
-            // The request body
-            String body = String.format("{\"model\": \"%s\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}", model, prompt);
-            connection.setDoOutput(true);
-            OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream());
-            writer.write(body);
-            writer.flush();
-            writer.close();
-
-            // Response from ChatGPT
-            BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-            String line;
-
-            StringBuilder response = new StringBuilder();
-
-            while ((line = br.readLine()) != null) {
-                response.append(line);
+    // Method to make API request to OpenAI's ChatGPT using multithreading
+    private void LLMPromptAsync(String prompt, int flag) {
+        new Thread(() -> {
+            try {
+                LLMPrompt(prompt, flag);
+            } catch (Exception e) {
+                e.printStackTrace(); // Handle exceptions appropriately
             }
-            br.close();
-            String res = getContent(response.toString());
-            res = res.replace("\\n", System.lineSeparator());
-            if (flag == 0)
-            {
-                promptBoxForCode.setText(res);
-            }
-            else
-            {
-                promptBoxForText.setText(res);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        }).start();
     }
+
     // Set the visibility of UI elements based on the choice
     @FXML
     private void setVisible() {
@@ -182,6 +147,7 @@ public class GeneratePrompt {
         boolean mentionOpinion = opinionCheckBox.isSelected();
 
         try {
+            progressIndicator.setVisible(true);
             if (promptType == "Text") {
                 checkEmptyFields(promptType, apiKeyForText.getText(), textQuestion, structure, purpose);
 
@@ -246,10 +212,12 @@ public class GeneratePrompt {
             finalPrompt = prompt.toString();
             finalPrompt = finalPrompt.replace("\\n", " ");
             prompt = new StringBuilder();
-            LLMPrompt(finalPrompt, 1);
+            // Perform the API request in a separate thread
+            LLMPromptAsync(finalPrompt, 1);
             generateButtonForText.setVisible(false);
             copyButtonForText.setVisible(true);
             regenerateButtonForText.setVisible(true);
+            progressIndicator.setVisible(false);
         } catch (IllegalArgumentException e) {
             showAlert(Alert.AlertType.ERROR, "Error", "Empty Field", e.getMessage());
         }
@@ -267,6 +235,7 @@ public class GeneratePrompt {
         String constrs = constraints.getText();
 
         try {
+            progressIndicator.setVisible(true);
             if (existingCode.isDisabled()) {
                 checkEmptyFields(topicText, language, languageVar, prob);
 
@@ -293,10 +262,17 @@ public class GeneratePrompt {
             finalPrompt = prompt.toString();
             finalPrompt = finalPrompt.replace("\\n", " ");
             prompt = new StringBuilder();
-            LLMPrompt(finalPrompt, 0);
+            // Perform the API request in a separate thread
+            LLMPromptAsync(finalPrompt, 0);
             generateButtonForCode.setVisible(false);
             copyButtonForCode.setVisible(true);
             regenerateButtonForCode.setVisible(true);
+            Timeline timeline = new Timeline(
+                    new KeyFrame(Duration.seconds(14), event -> {
+                        progressIndicator.setVisible(false);
+                    })
+            );
+            timeline.play();
         } catch (IllegalArgumentException e) {
             showAlert(Alert.AlertType.ERROR, "Error", "Empty Field", e.getMessage());
         }
@@ -317,5 +293,55 @@ public class GeneratePrompt {
         alert.setContentText(contentText);
         alert.showAndWait();
     }
+
+    // Method to update UI components in the JavaFX Application Thread
+    private void updateUI(String result, int flag) {
+        Platform.runLater(() -> {
+            if (flag == 0) {
+                promptBoxForCode.setText(result);
+            } else {
+                promptBoxForText.setText(result);
+            }
+        });
+    }
+
+    // Method to make API request to OpenAI's ChatGPT
+    private void LLMPrompt(String prompt, int flag) {
+        String apiKey = (flag == 0) ? apiKeyForCode.getText() : apiKeyForText.getText();
+        String model = "gpt-3.5-turbo";
+        String url = "https://api.openai.com/v1/chat/completions";
+
+        try {
+            URL obj = new URL(url);
+            HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+            connection.setRequestProperty("Content-Type", "application/json");
+
+            // The request body
+            String body = String.format("{\"model\": \"%s\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}", model, prompt);
+            connection.setDoOutput(true);
+            try (OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream())) {
+                writer.write(body);
+                writer.flush();
+            }
+
+            // Response from ChatGPT
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    response.append(line);
+                }
+                String res = getContent(response.toString());
+                res = res.replace("\\n", System.lineSeparator());
+                // Update the UI with the result
+                updateUI(res, flag);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }
+
 

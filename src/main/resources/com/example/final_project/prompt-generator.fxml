@@ -7,6 +7,7 @@
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.TabPane?>
@@ -61,6 +62,7 @@
                                           <Font name="Franklin Gothic Demi Cond" size="15.0" />
                                        </font>
                                     </Button>
+                                    <ProgressIndicator fx:id="progressIndicator" layoutX="398.0" layoutY="108.0" />
                                  </children>
                               </AnchorPane>
                                <ChoiceBox fx:id="languages" layoutX="14.0" layoutY="44.0" prefWidth="150.0">
